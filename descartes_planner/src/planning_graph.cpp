@@ -33,10 +33,10 @@ using namespace descartes_trajectory;
 
 namespace descartes_planner
 {
-
 PlanningGraph::PlanningGraph(RobotModelConstPtr model, CostFunction cost_function_callback)
   : graph_(model->getDOF()), robot_model_(std::move(model)), custom_cost_function_(cost_function_callback)
-{}
+{
+}
 
 bool PlanningGraph::insertGraph(const std::vector<TrajectoryPtPtr>& points)
 {
@@ -46,7 +46,8 @@ bool PlanningGraph::insertGraph(const std::vector<TrajectoryPtPtr>& points)
     return false;
   }
 
-  if (graph_.size() > 0) clear();
+  if (graph_.size() > 0)
+    clear();
 
   // generate solutions for this point
   std::vector<std::vector<std::vector<double>>> all_joint_sols;
@@ -62,8 +63,8 @@ bool PlanningGraph::insertGraph(const std::vector<TrajectoryPtPtr>& points)
     graph_.assignRung(i, points[i]->getID(), points[i]->getTiming(), all_joint_sols[i]);
   }
 
-  // now we have a graph with data in the 'rungs' and we need to compute the edges
-  #pragma omp parallel for
+// now we have a graph with data in the 'rungs' and we need to compute the edges
+#pragma omp parallel for
   for (std::size_t i = 0; i < graph_.size() - 1; ++i)
   {
     computeAndAssignEdges(i, i + 1);
@@ -74,14 +75,14 @@ bool PlanningGraph::insertGraph(const std::vector<TrajectoryPtPtr>& points)
 
 bool PlanningGraph::addTrajectory(TrajectoryPtPtr point, TrajectoryPt::ID previous_id, TrajectoryPt::ID next_id)
 {
-  assert(previous_id.is_nil() || graph_.indexOf(previous_id).second); // These tests ensure that the user points
-  assert(next_id.is_nil() || graph_.indexOf(next_id).second);         // actually exist. Maybe should be part of
+  assert(previous_id.is_nil() || graph_.indexOf(previous_id).second);  // These tests ensure that the user points
+  assert(next_id.is_nil() || graph_.indexOf(next_id).second);          // actually exist. Maybe should be part of
                                                                        // the normal interface? TODO
   auto ns = graph_.indexOf(next_id);
 
   // Next & prev can be 'null' indicating end & start of trajectory
   std::vector<std::vector<std::vector<double>>> poses;
-  calculateJointSolutions(&point, 1, poses); // TODO: If there are no points, return false?
+  calculateJointSolutions(&point, 1, poses);  // TODO: If there are no points, return false?
 
   // Insert new point into graph
   auto insert_idx = ns.second ? ns.first : graph_.size();
@@ -108,12 +109,13 @@ bool PlanningGraph::addTrajectory(TrajectoryPtPtr point, TrajectoryPt::ID previo
 bool PlanningGraph::modifyTrajectory(TrajectoryPtPtr point)
 {
   auto s = graph_.indexOf(point->getID());
-  if (!s.second) return false; // no such point
+  if (!s.second)
+    return false;  // no such point
   auto idx = s.first;
 
   // we will need to recompute some vertices now
   std::vector<std::vector<std::vector<double>>> poses;
-  calculateJointSolutions(&point, 1, poses); // TODO: If there are no points, return false?
+  calculateJointSolutions(&point, 1, poses);  // TODO: If there are no points, return false?
 
   // clear vertices & edges of 'point'
   graph_.clearVertices(idx);
@@ -141,7 +143,8 @@ bool PlanningGraph::removeTrajectory(const TrajectoryPt::ID& point)
 {
   // Remove a point from the graph
   auto s = graph_.indexOf(point);
-  if (!s.second) return false;
+  if (!s.second)
+    return false;
 
   auto in_middle = !graph_.isFirst(s.first) && !graph_.isLast(s.first);
 
@@ -152,7 +155,7 @@ bool PlanningGraph::removeTrajectory(const TrajectoryPt::ID& point)
   if (in_middle)
   {
     auto prev_idx = s.first - 1;
-    auto next_idx = s.first; // We erased a point, so the indexes have collapsed by one
+    auto next_idx = s.first;  // We erased a point, so the indexes have collapsed by one
     computeAndAssignEdges(prev_idx, next_idx);
   }
 
@@ -161,9 +164,10 @@ bool PlanningGraph::removeTrajectory(const TrajectoryPt::ID& point)
 
 bool PlanningGraph::getShortestPath(double& cost, std::list<JointTrajectoryPt>& path)
 {
-  DAGSearch search (graph_);
+  DAGSearch search(graph_);
   cost = search.run();
-  if (cost == std::numeric_limits<double>::max()) return false;
+  if (cost == std::numeric_limits<double>::max())
+    return false;
 
   auto path_idxs = search.shortestPath();
   const auto dof = graph_.dof();
@@ -188,8 +192,9 @@ bool PlanningGraph::calculateJointSolutions(const TrajectoryPtPtr* points, const
 {
   poses.resize(count);
   bool success = true;
-
-  #pragma omp parallel for shared(success)
+  //
+  //#pragma omp parallel for shared(success)
+  // TODO::VIP-447
   for (std::size_t i = 0; i < count; ++i)
   {
     if (success)
@@ -228,44 +233,47 @@ void PlanningGraph::computeAndAssignEdges(const std::size_t start_idx, const std
 
   if (!custom_cost_function_ && tm.isSpecified())
   {
-    DefaultEdgesWithTime builder (start_size, end_size, dof, tm.upper, robot_model_->getJointVelocityLimits());
+    DefaultEdgesWithTime builder(start_size, end_size, dof, tm.upper, robot_model_->getJointVelocityLimits());
     edges = calculateEdgeWeights(builder, joints1, joints2, dof, b);
   }
   else if (custom_cost_function_ && tm.isSpecified())
   {
-    CustomEdgesWithTime builder (start_size, end_size, dof, tm.upper, robot_model_->getJointVelocityLimits(), custom_cost_function_);
+    CustomEdgesWithTime builder(start_size, end_size, dof, tm.upper, robot_model_->getJointVelocityLimits(),
+                                custom_cost_function_);
     edges = calculateEdgeWeights(builder, joints1, joints2, dof, b);
   }
   else if (!custom_cost_function_ && !tm.isSpecified())
   {
-    DefaultEdgesWithoutTime builder (start_size, end_size, dof);
+    DefaultEdgesWithoutTime builder(start_size, end_size, dof);
     edges = calculateEdgeWeights(builder, joints1, joints2, dof, b);
   }
   else
   {
-    CustomEdgesWithoutTime builder (start_size, end_size, dof, custom_cost_function_);
+    CustomEdgesWithoutTime builder(start_size, end_size, dof, custom_cost_function_);
     edges = calculateEdgeWeights(builder, joints1, joints2, dof, b);
   }
 
   graph_.assignEdges(start_idx, std::move(edges));
-  if (!b) ROS_WARN("No edges between user input points at index %lu and %lu", start_idx, end_idx);
+  if (!b)
+    ROS_WARN("No edges between user input points at index %lu and %lu", start_idx, end_idx);
 }
 
-template<typename EdgeBuilder>
-std::vector<LadderGraph::EdgeList> PlanningGraph::calculateEdgeWeights(EdgeBuilder&& builder, const std::vector<double>& start_joints,
-                                                                       const std::vector<double>& end_joints, const size_t dof,
-                                                                       bool& has_edges) const
+template <typename EdgeBuilder>
+std::vector<LadderGraph::EdgeList> PlanningGraph::calculateEdgeWeights(EdgeBuilder&& builder,
+                                                                       const std::vector<double>& start_joints,
+                                                                       const std::vector<double>& end_joints,
+                                                                       const size_t dof, bool& has_edges) const
 {
   const auto from_size = start_joints.size();
   const auto to_size = end_joints.size();
   const auto n_start_points = from_size / dof;
   const auto n_end_points = to_size / dof;
 
-  for (size_t i = 0; i < n_start_points; i++) // from rung
+  for (size_t i = 0; i < n_start_points; i++)  // from rung
   {
     const auto start_index = i * dof;
 
-    for (size_t j = 0; j < n_end_points; j++) // to rung
+    for (size_t j = 0; j < n_end_points; j++)  // to rung
     {
       const auto end_index = j * dof;
 

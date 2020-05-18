@@ -67,10 +67,7 @@ void DensePlanner::getConfig(descartes_core::PlannerConfig& config) const
 descartes_core::TrajectoryPt::ID DensePlanner::getPrevious(const descartes_core::TrajectoryPt::ID& ref_id)
 {
   descartes_core::TrajectoryPt::ID id;
-  auto predicate = [&ref_id](descartes_core::TrajectoryPtPtr p)
-  {
-    return ref_id == p->getID();
-  };
+  auto predicate = [&ref_id](descartes_core::TrajectoryPtPtr p) { return ref_id == p->getID(); };
 
   auto pos = std::find_if(path_.begin()++, path_.end(), predicate);
   if (pos == path_.end())
@@ -93,6 +90,7 @@ bool DensePlanner::updatePath()
   if (planning_graph_->getShortestPath(c, list))
   {
     error_code_ = descartes_core::PlannerErrors::OK;
+    path_.clear();
     for (auto&& p : list)
     {
       path_.push_back(boost::make_shared<descartes_trajectory::JointTrajectoryPt>(std::move(p)));
@@ -109,10 +107,7 @@ bool DensePlanner::updatePath()
 descartes_core::TrajectoryPt::ID DensePlanner::getNext(const descartes_core::TrajectoryPt::ID& ref_id)
 {
   descartes_core::TrajectoryPt::ID id;
-  auto predicate = [&ref_id](descartes_core::TrajectoryPtPtr p)
-  {
-    return ref_id == p->getID();
-  };
+  auto predicate = [&ref_id](descartes_core::TrajectoryPtPtr p) { return ref_id == p->getID(); };
 
   auto pos = std::find_if(path_.begin(), path_.end() - 2, predicate);
   if (pos == path_.end())
@@ -130,10 +125,7 @@ descartes_core::TrajectoryPt::ID DensePlanner::getNext(const descartes_core::Tra
 descartes_core::TrajectoryPtPtr DensePlanner::get(const descartes_core::TrajectoryPt::ID& ref_id)
 {
   descartes_core::TrajectoryPtPtr p;
-  auto predicate = [&ref_id](descartes_core::TrajectoryPtPtr p)
-  {
-    return ref_id == p->getID();
-  };
+  auto predicate = [&ref_id](descartes_core::TrajectoryPtPtr p) { return ref_id == p->getID(); };
 
   auto pos = std::find_if(path_.begin(), path_.end() - 2, predicate);
   if (pos == path_.end())
@@ -155,6 +147,7 @@ bool DensePlanner::planPath(const std::vector<descartes_core::TrajectoryPtPtr>& 
     return false;
   }
 
+  // TODO::VIP-447
   path_.clear();
   error_code_ = descartes_core::PlannerError::EMPTY_PATH;
 
@@ -262,9 +255,9 @@ bool DensePlanner::remove(const descartes_core::TrajectoryPt::ID& ref_id)
   if (tp)
   {
     tp->setID(ref_id);
-    if (planning_graph_->removeTrajectory(tp->getID())) // TODO: Clean up this extra copy & lookup
+    if (planning_graph_->removeTrajectory(tp->getID()))  // TODO: Clean up this extra copy & lookup
     {
-      if (updatePath()) // TODO: Should we force an update here? What if the user wants to remove several points?
+      if (updatePath())  // TODO: Should we force an update here? What if the user wants to remove several points?
       {
         error_code_ = descartes_core::PlannerError::OK;
       }
@@ -344,4 +337,4 @@ bool DensePlanner::getErrorMessage(int error_code, std::string& msg) const
   return true;
 }
 
-} /* namespace descartes_core */
+}  // namespace descartes_planner
